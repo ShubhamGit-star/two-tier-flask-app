@@ -1,0 +1,97 @@
+@Library("Shared") _
+pipeline {
+    agent { label 'dev' }
+
+    environment {
+        TF_VAR_region = 'us-east-1'
+        TF_IN_AUTOMATION = 'true'
+    }
+
+    stages {
+
+        stage("Code Clone") {
+            steps {
+                script {
+                    clone("https://github.com/ShubhamGit-star/two-tier-flask-app.git", "master")
+                }
+            }
+        }
+
+        stage("Terraform Init") {
+            steps {
+                dir('terraform') {
+                    sh 'terraform init'
+                }
+            }
+        }
+
+        stage("Terraform Plan") {
+            steps {
+                dir('terraform') {
+                    sh 'terraform plan -out=tfplan'
+                }
+            }
+        }
+
+        stage("Terraform Apply") {
+            steps {
+                dir('terraform') {
+                    sh 'terraform apply -auto-approve tfplan'
+                }
+            }
+        }
+
+        stage("Trivy File System Scan") {
+            steps {
+                script {
+                    trivy_fs()
+                }
+            }
+        }
+
+        stage("Build") {
+            steps {
+                sh "docker build -t two-tier-flask-app ."
+            }
+        }
+
+        stage("Test") {
+            steps {
+                echo "Developer / Tester tests likh ke dega..."
+            }
+        }
+
+        stage("Push to Docker Hub") {
+            steps {
+                script {
+                    docker_push("dockerHubCreds", "two-tier-flask-app")
+                }
+            }
+        }
+
+        stage("Deploy") {
+            steps {
+                sh "docker compose up -d --build flask-app"
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                emailext from: 'guptashubhammeerut@gmail.com',
+                to: 'guptashubhammeerut@gmail.com',
+                body: 'Build success for Demo CICD App',
+                subject: 'Build success for Demo CICD App'
+            }
+        }
+        failure {
+            script {
+                emailext from: 'guptashubhammeerut@gmail.com',
+                to: 'guptashubhammeerut@gmail.com',
+                body: 'Build Failed for Demo CICD App',
+                subject: 'Build Failed for Demo CICD App'
+            }
+        }
+    }
+}
